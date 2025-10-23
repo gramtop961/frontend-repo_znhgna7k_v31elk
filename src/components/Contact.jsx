@@ -3,22 +3,42 @@ import { useState } from 'react';
 
 export default function Contact() {
   const [status, setStatus] = useState('idle');
+  const [error, setError] = useState('');
 
-  function onSubmit(e) {
+  async function onSubmit(e) {
     e.preventDefault();
+    setError('');
     const form = e.currentTarget;
     const data = new FormData(form);
     const name = data.get('name');
     const email = data.get('email');
+    const type = data.get('type');
     const message = data.get('message');
 
     if (!name || !email || !message) {
       setStatus('error');
+      setError('Please fill in all required fields.');
       return;
     }
 
-    setStatus('success');
-    form.reset();
+    try {
+      setStatus('loading');
+      const base = import.meta.env.VITE_BACKEND_URL || '';
+      const res = await fetch(`${base}/api/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, type, message }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail || 'Failed to send inquiry');
+      }
+      setStatus('success');
+      form.reset();
+    } catch (err) {
+      setStatus('error');
+      setError(err.message || 'Something went wrong. Please try again.');
+    }
   }
 
   return (
@@ -57,16 +77,16 @@ export default function Contact() {
                 <label className="block text-sm text-zinc-400">Message</label>
                 <textarea name="message" required rows={6} className="mt-2 w-full rounded-lg border border-zinc-800 bg-neutral-950 px-4 py-3 text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-zinc-700" placeholder="Tell me about your site, scope, location, and timeline." />
               </div>
-              <div className="flex items-center justify-between gap-4">
-                <button type="submit" className="inline-flex items-center gap-2 rounded-full bg-white text-neutral-900 px-6 py-3 font-medium hover:bg-zinc-200 transition">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button type="submit" disabled={status==='loading'} className="inline-flex items-center gap-2 rounded-full bg-white text-neutral-900 px-6 py-3 font-medium hover:bg-zinc-200 transition disabled:opacity-60 disabled:cursor-not-allowed">
                   <Mail size={18} />
-                  Send Inquiry
+                  {status === 'loading' ? 'Sending…' : 'Send Inquiry'}
                 </button>
                 {status === 'success' && (
-                  <p className="text-sm text-emerald-400">Thank you — your message has been noted. I’ll be in touch soon.</p>
+                  <p className="text-sm text-emerald-400">Thank you — your message has been received.</p>
                 )}
                 {status === 'error' && (
-                  <p className="text-sm text-red-400">Please fill in all required fields.</p>
+                  <p className="text-sm text-red-400">{error}</p>
                 )}
               </div>
             </form>
